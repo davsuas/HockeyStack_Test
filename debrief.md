@@ -1,6 +1,6 @@
 
 
-Hi,
+Hello,
 
 I hope this message finds you well. I would like to propose a few enhancements that may positively impact the project:
 
