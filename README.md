@@ -8,6 +8,12 @@ You should change the name of the ```.env.example``` file to ```.env```.
 
 Run ```node app.js``` to get things started. Hopefully the project should start without any errors.
 
+### Security-related environment variables
+
+- `DOMAIN_ENCRYPTION_KEY`: secret used to encrypt/decrypt sensitive integration credentials at rest.
+- `REQUEST_BODY_LIMIT` (optional): overrides HTTP request body limit (defaults to `1mb`).
+- `WORKER_QUEUE_CONCURRENCY` (optional): worker queue concurrency (defaults to `20`).
+
 ## Explanations
 
 The actual task will be explained separately.
@@ -21,4 +27,3 @@ The Domain model is a record signifying a HockeyStack customer. You shouldn't wo
 The implementation of the server and the ```server.js``` is not important for this project.
 
 Every data source in this project was created for test purposes. If any request takes more than 5 seconds to execute, there is something wrong with the implementation.
-

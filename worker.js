@@ -7,7 +7,18 @@ const Domain = require('./Domain');
 
 const hubspotClient = new hubspot.Client({ accessToken: '' });
 const propertyPrefix = 'hubspot__';
+const queueConcurrency = Math.max(parseInt(process.env.WORKER_QUEUE_CONCURRENCY, 10) || 20, 1);
 let expirationDate;
+
+const getErrorMessage = err => err && err.message ? err.message : 'Unexpected error';
+
+const logWorkerError = (operation, metadata, err) => {
+  console.error('HubSpot worker operation failed', {
+    operation,
+    ...metadata,
+    error: getErrorMessage(err)
+  });
+};
 
 const generateLastModifiedDateFilter = (date, nowDate, propertyName = 'hs_lastmodifieddate') => {
   const lastModifiedDateFilter = date ?
@@ -378,7 +389,7 @@ const createQueue = (domain, actions) => queue(async (action, callback) => {
   actions.push(action);
 
   if (actions.length > 2000) {
-    console.log('inserting actions to database', { apiKey: domain.apiKey, count: actions.length });
+    console.log('inserting actions to database', { count: actions.length });
 
     const copyOfActions = _.cloneDeep(actions);
     actions.splice(0, actions.length);
@@ -387,7 +398,7 @@ const createQueue = (domain, actions) => queue(async (action, callback) => {
   }
 
   callback();
-}, 100000000);
+}, queueConcurrency);
 
 const drainQueue = async (domain, actions, q) => {
   if (q.length() > 0) await q.drain();
@@ -410,7 +421,7 @@ const pullDataFromHubspot = async () => {
     try {
       await refreshAccessToken(domain, account.hubId);
     } catch (err) {
-      console.log(err, { apiKey: domain.apiKey, metadata: { operation: 'refreshAccessToken' } });
+      logWorkerError('refreshAccessToken', {}, err);
     }
 
     const actions = [];
@@ -420,28 +431,28 @@ const pullDataFromHubspot = async () => {
       await processContacts(domain, account.hubId, q);
       console.log('process contacts');
     } catch (err) {
-      console.log(err, { apiKey: domain.apiKey, metadata: { operation: 'processContacts', hubId: account.hubId } });
+      logWorkerError('processContacts', { hubId: account.hubId }, err);
     }
 
     try {
       await processCompanies(domain, account.hubId, q);
       console.log('process companies');
     } catch (err) {
-      console.log(err, { apiKey: domain.apiKey, metadata: { operation: 'processCompanies', hubId: account.hubId } });
+      logWorkerError('processCompanies', { hubId: account.hubId }, err);
     }
 
     try {
       await processMeetings(domain, account.hubId, q);
       console.log('process meetings');
     } catch (err) {
-      console.log(err, { apiKey: domain.apiKey, metadata: { operation: 'processMeetings', hubId: account.hubId } });
+      logWorkerError('processMeetings', { hubId: account.hubId }, err);
     }
 
     try {
       await drainQueue(domain, actions, q);
       console.log('drain queue');
     } catch (err) {
-      console.log(err, { apiKey: domain.apiKey, metadata: { operation: 'drainQueue', hubId: account.hubId } });
+      logWorkerError('drainQueue', { hubId: account.hubId }, err);
     }
 
     await saveDomain(domain);
