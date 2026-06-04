@@ -7,10 +7,20 @@ const Domain = require('./Domain');
 
 const hubspotClient = new hubspot.Client({ accessToken: '' });
 const propertyPrefix = 'hubspot__';
-const queueConcurrency = Math.max(parseInt(process.env.WORKER_QUEUE_CONCURRENCY, 10) || 20, 1);
+const MAX_QUEUE_CONCURRENCY = 200;
+const parsedQueueConcurrency = parseInt(process.env.WORKER_QUEUE_CONCURRENCY, 10);
+const queueConcurrency = Math.min(MAX_QUEUE_CONCURRENCY, Math.max(1, Number.isNaN(parsedQueueConcurrency) ? 20 : parsedQueueConcurrency));
 let expirationDate;
 
-const getErrorMessage = err => err && err.message ? err.message : 'Unexpected error';
+const sanitizeErrorMessage = message => String(message)
+  .replace(/(access[_-]?token|refresh[_-]?token|api[_-]?key|authorization)\s*[:=]\s*[^,\s]+/gi, '$1=[REDACTED]')
+  .slice(0, 300);
+
+const getErrorMessage = err => {
+  if (typeof err === 'string') return sanitizeErrorMessage(err);
+  if (err && err.message) return sanitizeErrorMessage(err.message);
+  return 'Unexpected error';
+};
 
 const logWorkerError = (operation, metadata, err) => {
   console.error('HubSpot worker operation failed', {
